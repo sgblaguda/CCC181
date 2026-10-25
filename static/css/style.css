@@ -1,0 +1,130 @@
+:root { 
+  --qz-gray: #bfbfbf; 
+  --qz-line: #444; 
+}
+
+.qz-brand { 
+  font-size: 1.9rem; 
+  font-weight: 800; 
+  color: #000; 
+}
+
+.qz-menu-btn {
+  width: 52px; height: 52px; 
+  border-radius: 50%;
+  display: grid; 
+  place-items: center;
+  background: var(--qz-gray); 
+  color: #000;
+  border: 2px solid var(--qz-line); 
+  padding: 0;
+}
+
+.qz-menu-btn:hover { 
+  background: #a8a8a8; 
+}
+
+.qz-menu {
+  background: var(--qz-gray); 
+  border: 2px solid var(--qz-line);
+  border-radius: 24px; 
+  padding: .5rem 1rem; 
+  margin-top: .75rem;
+}
+.qz-menu .nav-link { 
+  color: #000; 
+  font-weight: 600; 
+  min-height: 44px; 
+  display: flex; 
+  align-items: center; 
+}
+
+.qz-menu .nav-link.active { 
+    text-decoration: underline; 
+    text-underline-offset: 4px; 
+  }
+
+.btn { 
+  border-radius: 50rem; 
+  min-height: 44px; 
+  font-weight: 700; 
+}
+
+.btn-sm { 
+  min-height: 44px; 
+  min-width: 44px; 
+}
+
+.btn-primary {
+  --bs-btn-color: #000; 
+  --bs-btn-bg: var(--qz-gray); 
+  --bs-btn-border-color: var(--qz-line);
+  --bs-btn-hover-color: #000; 
+  --bs-btn-hover-bg: #a8a8a8; 
+  --bs-btn-hover-border-color: #222;
+  --bs-btn-active-color: #000; 
+  --bs-btn-active-bg: #999; 
+  --bs-btn-active-border-color: #222;
+  --bs-btn-focus-shadow-rgb: 68, 68, 68;
+}
+
+.form-control, .form-select { 
+  border-radius: 50rem; 
+  border: 2px solid var(--qz-line); 
+  min-height: 48px; 
+  padding-inline: 1rem; 
+}
+
+.qz-card { 
+  background: var(--qz-gray); 
+  border: 2px solid var(--qz-line); 
+  border-radius: 28px; 
+  padding: 1.25rem; 
+}
+
+:focus-visible { 
+  outline: 3px solid #0b57d0; 
+  outline-offset: 2px; 
+}
+
+.qz-counts {
+  display: grid; 
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); 
+  gap: .75rem;
+  background: var(--qz-gray); 
+  border: 2px solid var(--qz-line); 
+  border-radius: 28px; 
+  padding: 1rem;
+}
+
+.qz-count { 
+  display: flex; 
+  align-items: center; 
+  gap: .75rem; 
+  background: #fff; 
+  border-radius: 50rem; 
+  min-height: 56px; 
+  padding-right: 1rem; 
+}
+
+.qz-count-num {
+  flex: none; display: grid; 
+  place-items: center; 
+  width: 56px; 
+  height: 56px;
+  border-radius: 50%; 
+  background: #000; 
+  color: #fff; 
+  font-weight: 800; 
+  font-size: 1.4rem;
+}
+
+.qz-count-label { 
+  flex: 1; text-align: center; 
+  line-height: 1.1; 
+}
+
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+}

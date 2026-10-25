@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Find my ticket · Qeazy{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-md-8 col-lg-6">
+    <h1 class="h3 mb-3">Find my ticket</h1>
+    <form method="post" action="{{ url_for('find') }}" novalidate>
+      <div class="qz-card mb-4">
+        <div class="mb-3">
+          <label for="number" class="form-label fw-semibold">Ticket number</label>
+          <input id="number" name="number" type="text" inputmode="numeric" autocomplete="off" required
+                 class="form-control" value="{{ form.get('number', '') }}">
+        </div>
+        <div class="mb-1">
+          <label for="student_id" class="form-label fw-semibold">Student ID</label>
+          <input id="student_id" name="student_id" type="text" autocomplete="off" required
+                 class="form-control" value="{{ form.get('student_id', '') }}">
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary btn-lg w-100">Check my place</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
