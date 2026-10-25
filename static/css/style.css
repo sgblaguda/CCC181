@@ -1,80 +1,73 @@
-/* Colors borrowed from the Week 2 slide deck */
-:root {
-  --navy: #16223A;
-  --paper: #F6F4EE;
-  --card: #FFFDF8;
-  --teal: #2D6F78;
-  --orange: #B4501E;
+:root { 
+  --qz-gray: #bfbfbf; 
+  --qz-line: #444; 
 }
 
-body {
-  margin: 0;
-  font-family: "IBM Plex Sans", Arial, sans-serif;
-  background: var(--paper);
-  color: #1B2438;
+.qz-brand { 
+  font-size: 1.9rem; 
+  font-weight: 800; 
+  color: #000; 
 }
 
-header {
-  background: var(--navy);
-  color: var(--paper);
-  padding: 1.5rem 2rem;
+.qz-menu-btn {
+  width: 52px; height: 52px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--qz-gray); color: #000;
+  border: 2px solid var(--qz-line); padding: 0;
+}
+.qz-menu-btn:hover { 
+  background: #a8a8a8; 
 }
 
-header h1 { margin: 0; }
-header a { color: var(--paper); text-decoration: none; }
-.tagline { margin: 0.25rem 0 0; color: #C5CEDD; }
-
-main {
-  max-width: 720px;
-  margin: 2rem auto;
-  padding: 0 1rem;
+.qz-menu {
+  background: var(--qz-gray); border: 2px solid var(--qz-line);
+  border-radius: 24px; padding: .5rem 1rem; margin-top: .75rem;
+}
+.qz-menu .nav-link { color: #000; 
+  font-weight: 600; 
+  min-height: 44px; 
+  display: flex; 
+  align-items: center; 
 }
 
-h2 { color: var(--teal); }
-
-.tickets { list-style: none; padding: 0; }
-.tickets li {
-  background: var(--card);
-  border: 1px solid #E2DED3;
-  border-radius: 8px;
-  padding: 0.75rem 1rem;
-  margin-bottom: 0.5rem;
-}
-.tickets a { color: var(--orange); font-weight: 600; }
-
-code { background: #ECE8DE; padding: 0 0.3rem; border-radius: 4px; }
-
-footer {
-  text-align: center;
-  color: #5A6272;
-  padding: 2rem 0;
+.qz-menu .nav-link.active { 
+  text-decoration: underline; 
+  text-underline-offset: 4px; 
 }
 
-/* Join-queue form */
-.button, .join-form button {
-  display: inline-block;
-  background: var(--teal);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 0.6rem 1.2rem;
-  font: inherit;
-  text-decoration: none;
-  cursor: pointer;
+.btn { 
+  border-radius: 50rem; 
+  min-height: 44px; 
+  font-weight: 700; 
 }
 
-.join-form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  max-width: 320px;
+.btn-sm { 
+  min-height: 38px; 
+  min-width: 44px; 
 }
 
-.join-form input {
-  padding: 0.5rem;
-  border: 1px solid #C9C4B8;
-  border-radius: 6px;
-  font: inherit;
+.btn-primary {
+  --bs-btn-color: #000; --bs-btn-bg: var(--qz-gray); --bs-btn-border-color: var(--qz-line);
+  --bs-btn-hover-color: #000; --bs-btn-hover-bg: #a8a8a8; --bs-btn-hover-border-color: #222;
+  --bs-btn-active-color: #000; --bs-btn-active-bg: #999; --bs-btn-active-border-color: #222;
+  --bs-btn-focus-shadow-rgb: 68, 68, 68;
+
+}
+.form-control, .form-select { 
+  border-radius: 50rem; 
+  border: 2px solid var(--qz-line); 
+  min-height: 48px; 
+  padding-inline: 1rem; 
 }
 
-.error { color: var(--orange); font-weight: 600; }
+.qz-card { 
+  background: var(--qz-gray); 
+  border: 2px solid var(--qz-line); 
+  border-radius: 28px; 
+  padding: 1.25rem; 
+}
+
+:focus-visible { 
+  outline: 3px solid #ffbf47; 
+  outline-offset: 2px; 
+}
