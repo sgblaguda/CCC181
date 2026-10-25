@@ -1,9 +1,40 @@
 {% extends "base.html" %}
-
-{% block title %}Ticket #{{ ticket.number }} · ClinicQ{% endblock %}
+{% block title %}Ticket #{{ ticket.number }} · Qeazy{% endblock %}
 
 {% block content %}
-  <h2>Ticket #{{ ticket.number }}</h2>
-  <p>Hi {{ ticket.name }}! You are <strong>number {{ position }}</strong> in the queue.</p>
-  <p><a href="{{ url_for('index') }}">&larr; Back to the queue</a></p>
+{% set badges = {'waiting': 'warning', 'called': 'success', 'served': 'secondary', 'no-show': 'danger'} %}
+<div class="row justify-content-center">
+  <div class="col-12 col-md-8 col-lg-6">
+    <div class="card text-center border-2 rounded-5">
+      <div class="card-body py-4">
+        <h1 class="h5">Your ticket is</h1>
+        <p class="display-1 fw-bold mb-1">#{{ ticket.number }}</p>
+        <p class="fs-5 mb-3">{{ service.name }}</p>
+
+        <div id="live-status" aria-live="polite">
+          <p class="mb-2">
+            <span id="status-badge" class="badge fs-6 text-bg-{{ badges[ticket.status] }}">{{ ticket.status|capitalize }}</span>
+          </p>
+          <p class="fs-4 fw-semibold mb-1" id="ahead-text">
+            {% if ticket.status == 'waiting' %}
+              {% if ahead == 0 %}You're next!{% elif ahead == 1 %}1 person is ahead of you{% else %}{{ ahead }} people are ahead of you{% endif %}
+            {% elif ticket.status == 'called' %}Please go to the registrar counter now.
+            {% elif ticket.status == 'served' %}You have been served.
+            {% else %}You are no longer in the queue.{% endif %}
+          </p>
+          <p class="text-body-secondary" id="wait-text">
+            {% if ticket.status == 'waiting' and ahead > 0 %}About {{ wait }} minutes{% endif %}
+          </p>
+        </div>
+
+        {% if ticket.status in ('waiting', 'called') %}
+        <form method="post" action="{{ url_for('leave', ticket_id=ticket.number) }}"
+              onsubmit="return confirm('Leave the queue? You will lose your place.');">
+          <button type="submit" class="btn btn-outline-dark w-100 mt-3">Leave the queue</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}

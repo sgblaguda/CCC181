@@ -9,6 +9,8 @@ from flask import Flask, abort, flash, redirect, render_template, request, url_f
 app = Flask(__name__)
 app.secret_key = "dev-only-change-me" 
 
+MINUTES_PER_STUDENT = 10
+
 SERVICES = [
     {"id": 1, "name": "Late enrollment"},
     {"id": 2, "name": "Change of subjects"},
@@ -30,13 +32,28 @@ def index():
     return render_template("index.html")
 
 
-@app.route("/queue/<int:ticket_id>")
+@app.get("/queue/<int:ticket_id>")
 def ticket(ticket_id):
-    for position, t in enumerate(TICKETS, start=1):
-        if t["number"] == ticket_id:
-            return render_template("ticket.html", ticket=t, position=position)
-    abort(404)
-
+    t = next((t for t in TICKETS if t["number"] == ticket_id), None)
+    if t is None:
+        abort(404)
+    ahead = [x for x in TICKETS
+             if x["service_id"] == t["service_id"]
+             and x["status"] == "waiting"
+             and x["number"] < t["number"]]
+    service = next(s for s in SERVICES if s["id"] == t["service_id"])
+    return render_template("ticket.html", ticket=t, service=service, ahead=len(ahead),
+                           wait=len(ahead) * MINUTES_PER_STUDENT)
+ 
+ 
+@app.post("/queue/<int:ticket_id>/leave")
+def leave(ticket_id):
+    t = next((t for t in TICKETS if t["number"] == ticket_id), None)
+    if t is None:
+        abort(404)
+    t["status"] = "no-show"
+    flash("You left the queue.", "info")
+    return redirect(url_for("index"))
 
 @app.get("/join")
 def join_form():
