@@ -22,10 +22,22 @@
       </button>
       <div class="collapse navbar-collapse" id="mainNav">
         <ul class="navbar-nav ms-auto qz-menu">
+          {% if my_ticket %}
+          <li class="nav-item">
+            <a class="nav-link {% if request.endpoint == 'ticket' %}active{% endif %}"
+               {% if request.endpoint == 'ticket' %}aria-current="page"{% endif %}
+               href="{{ url_for('ticket', ticket_id=my_ticket.number) }}">My place (#{{ my_ticket.number }})</a>
+          </li>
+          {% endif %}
           <li class="nav-item">
             <a class="nav-link {% if request.endpoint in ('join_form', 'join') %}active{% endif %}"
                {% if request.endpoint in ('join_form', 'join') %}aria-current="page"{% endif %}
                href="{{ url_for('join_form') }}">Join the queue</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {% if request.endpoint in ('find_form', 'find') %}active{% endif %}"
+               {% if request.endpoint in ('find_form', 'find') %}aria-current="page"{% endif %}
+               href="{{ url_for('find_form') }}">Find my ticket</a>
           </li>
           <li class="nav-item">
             <a class="nav-link {% if request.endpoint == 'staff_dashboard' %}active{% endif %}"
