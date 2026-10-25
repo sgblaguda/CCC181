@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Staff dashboard · Qeazy{% endblock %}
+
+{% block content %}
+{% set badges = {'waiting': 'warning', 'called': 'success'} %}
+<h1 class="h3 mb-3">Staff Dashboard</h1>
+
+<div class="qz-counts mb-4" role="group" aria-label="People waiting per concern">
+  {% for s in services %}
+    <div class="qz-count">
+      <span class="qz-count-num">{{ counts[s.id] }}</span>
+      <span class="qz-count-label">{{ s.name }}</span>
+    </div>
+  {% endfor %}
+</div>
+
+<div class="d-flex flex-wrap gap-3 align-items-end mb-4">
+  <form method="post" action="{{ url_for('call_next') }}" class="flex-grow-1 flex-md-grow-0">
+    <input type="hidden" name="service_id" value="{{ selected or '' }}">
+    <button type="submit" class="btn btn-primary btn-lg w-100 px-5">Call Next</button>
+  </form>
+
+  <form method="get" action="{{ url_for('staff_dashboard') }}" class="d-flex gap-2 align-items-end ms-md-auto">
+    <div>
+      <label for="filter" class="form-label mb-1">Filter concern</label>
+      <select id="filter" name="service_id" class="form-select">
+        <option value="">All concerns</option>
+        {% for s in services %}
+          <option value="{{ s.id }}" {% if selected == s.id %}selected{% endif %}>{{ s.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-outline-dark">Filter</button>
+  </form>
+</div>
+
+{% if queue %}
+<div class="table-responsive">
+  <table class="table align-middle">
+    <caption>Students waiting or called, in order</caption>
+    <thead>
+      <tr>
+        <th scope="col">Ticket</th>
+        <th scope="col">Name</th>
+        <th scope="col">Concern</th>
+        <th scope="col">Status</th>
+        <th scope="col">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in queue %}
+      <tr>
+        <th scope="row">#{{ t.number }}</th>
+        <td>{{ t.name }}</td>
+        <td>{{ names[t.service_id] }}</td>
+        <td><span class="badge text-bg-{{ badges[t.status] }}">{{ t.status|capitalize }}</span></td>
+        <td>
+          {% if t.status == 'called' %}
+          <div class="d-flex gap-2">
+            <form method="post" action="{{ url_for('staff_action', ticket_id=t.number, action='serve') }}">
+              <input type="hidden" name="service_id" value="{{ selected or '' }}">
+              <button type="submit" class="btn btn-sm btn-primary" aria-label="Mark ticket {{ t.number }} as served">Serve</button>
+            </form>
+            <form method="post" action="{{ url_for('staff_action', ticket_id=t.number, action='no-show') }}">
+              <input type="hidden" name="service_id" value="{{ selected or '' }}">
+              <button type="submit" class="btn btn-sm btn-outline-dark" aria-label="Mark ticket {{ t.number }} as no-show">No-show</button>
+            </form>
+          </div>
+          {% else %}
+          <span class="text-body-secondary">Waiting to be called</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="text-body-secondary">No one is waiting right now.</p>
+{% endif %}
+{% endblock %}

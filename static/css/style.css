@@ -71,3 +71,39 @@
   outline: 3px solid #ffbf47; 
   outline-offset: 2px; 
 }
+
+.qz-counts {
+  display: grid; 
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); 
+  gap: .75rem;
+  background: var(--qz-gray); border: 2px solid var(--qz-line); 
+  border-radius: 28px; 
+  padding: 1rem;
+}
+
+.qz-count { display: flex; 
+  align-items: center; 
+  gap: .75rem; 
+  background: #fff; 
+  border-radius: 50rem; 
+  min-height: 56px; 
+  padding-right: 1rem; 
+}
+
+.qz-count-num {
+  flex: none; 
+  display: grid; 
+  place-items: center; 
+  width: 56px; 
+  height: 56px;
+  border-radius: 50%; 
+  background: #000; 
+  color: #fff; 
+  font-weight: 800; 
+  font-size: 1.4rem;
+}
+
+.qz-count-label { flex: 1; 
+  text-align: center; 
+  line-height: 1.1; 
+}
