@@ -1,20 +1,56 @@
 {% extends "base.html" %}
 
-{% block title %}Join the queue · ClinicQ{% endblock %}
+{% block title %}Join the queue · Qeazy{% endblock %}
 
 {% block content %}
-  <h2>Join the queue</h2>
-
-  {% if error %}
-    <p class="error">{{ error }}</p>
-  {% endif %}
-
-  {# method="post" sends the form to the same URL as a POST request #}
-  <form method="post" class="join-form">
-    <label for="name">Your name</label>
-    <input id="name" name="name" type="text" autofocus>
-    <button type="submit">Get a ticket</button>
-  </form>
-
-  <p><a href="{{ url_for('index') }}">&larr; Back to the queue</a></p>
+<div class="row justify-content-center">
+  <div class="col-12 col-md-8 col-lg-6">
+    <h1 class="h3 mb-3">Join the queue</h1>
+ 
+    <form method="post" action="{{ url_for('join') }}" novalidate id="join-form">
+      <div class="qz-card mb-4">
+        <div class="mb-3">
+          <label for="name" class="form-label fw-semibold">Your name</label>
+          <input id="name" name="name" type="text" autocomplete="name" required
+                 class="form-control {% if errors.name %}is-invalid{% endif %}"
+                 value="{{ form.get('name', '') }}"
+                 {% if errors.name %}aria-describedby="name-error"{% endif %}>
+          {% if errors.name %}
+            <div id="name-error" class="invalid-feedback">{{ errors.name }}</div>
+          {% endif %}
+        </div>
+ 
+        <div class="mb-3">
+          <label for="student_id" class="form-label fw-semibold">Student ID</label>
+          <input id="student_id" name="student_id" type="text" autocomplete="off" required
+                 class="form-control {% if errors.student_id %}is-invalid{% endif %}"
+                 value="{{ form.get('student_id', '') }}"
+                 {% if errors.student_id %}aria-describedby="student_id-error"{% endif %}>
+          {% if errors.student_id %}
+            <div id="student_id-error" class="invalid-feedback">{{ errors.student_id }}</div>
+          {% endif %}
+        </div>
+ 
+        <div class="mb-1">
+          <label for="service_id" class="form-label fw-semibold">Type of concern</label>
+          <select id="service_id" name="service_id" required
+                  class="form-select {% if errors.service_id %}is-invalid{% endif %}"
+                  {% if errors.service_id %}aria-describedby="service_id-error"{% endif %}>
+            <option value="">Choose a concern…</option>
+            {% for s in services %}
+              <option value="{{ s.id }}"
+                {% if form.get('service_id') == s.id|string %}selected{% endif %}>{{ s.name }}</option>
+            {% endfor %}
+          </select>
+          {% if errors.service_id %}
+            <div id="service_id-error" class="invalid-feedback">{{ errors.service_id }}</div>
+          {% endif %}
+        </div>
+      </div>
+ 
+      <button type="submit" class="btn btn-primary btn-lg w-100">Get a Ticket</button>
+    </form>
+  </div>
+</div>
 {% endblock %}
+ 
