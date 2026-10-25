@@ -22,13 +22,14 @@
             {% elif ticket.status == 'served' %}You have been served.
             {% else %}You are no longer in the queue.{% endif %}
           </p>
+          <p class="alert alert-warning fw-semibold py-2 {% if not (ticket.status == 'waiting' and ahead <= 2) %}d-none{% endif %}" id="near-alert">Your turn is near!</p>
           <p class="text-body-secondary" id="wait-text">
             {% if ticket.status == 'waiting' and ahead > 0 %}About {{ wait }} minutes{% endif %}
           </p>
         </div>
 
         {% if ticket.status in ('waiting', 'called') %}
-        <form method="post" action="{{ url_for('leave', ticket_id=ticket.number) }}"
+        <form id="leave-form" method="post" action="{{ url_for('leave', ticket_id=ticket.number) }}"
               onsubmit="return confirm('Leave the queue? You will lose your place.');">
           <button type="submit" class="btn btn-outline-dark w-100 mt-3">Leave the queue</button>
         </form>
@@ -37,4 +38,45 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const statusUrl = "{{ url_for('ticket_status', ticket_id=ticket.number) }}";
+  const BADGES = {waiting: "warning", called: "success", served: "secondary", "no-show": "danger"};
+
+  function describe(data) {
+    if (data.status === "waiting") {
+      if (data.ahead === 0) return "You're next!";
+      return data.ahead === 1 ? "1 person is ahead of you" : data.ahead + " people are ahead of you";
+    }
+    if (data.status === "called") return "Please go to the registrar counter now.";
+    if (data.status === "served") return "You have been served.";
+    return "You are no longer in the queue.";
+  }
+
+  function render(data) {
+    const badge = document.getElementById("status-badge");
+    badge.className = "badge fs-6 text-bg-" + BADGES[data.status];
+    badge.textContent = data.status.charAt(0).toUpperCase() + data.status.slice(1);
+    document.getElementById("ahead-text").textContent = describe(data);
+    document.getElementById("wait-text").textContent =
+      data.status === "waiting" && data.ahead > 0 ? "About " + data.wait + " minutes" : "";
+    document.getElementById("near-alert").classList.toggle("d-none", !(data.status === "waiting" && data.ahead <= 2));
+    const leaveForm = document.getElementById("leave-form");
+    if (leaveForm) leaveForm.classList.toggle("d-none", !(data.status === "waiting" || data.status === "called"));
+  }
+
+  async function refreshStatus() {
+    try {
+      const res = await fetch(statusUrl);
+      if (!res.ok) return;
+      render(await res.json());
+    } catch (err) {
+      console.warn("Could not refresh status", err);
+    }
+  }
+
+  setInterval(refreshStatus, 10000);
+</script>
 {% endblock %}

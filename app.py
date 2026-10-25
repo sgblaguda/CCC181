@@ -1,9 +1,11 @@
 import re
+from datetime import timedelta
 
-from flask import Flask, abort, flash, redirect, render_template, request, url_for
+from flask import Flask, abort, flash, redirect, render_template, request, session, url_for
 
 app = Flask(__name__)
 app.secret_key = "dev-only-change-me"
+app.permanent_session_lifetime = timedelta(hours=12)
 
 MINUTES_PER_STUDENT = 10
 
@@ -19,6 +21,14 @@ TICKETS = [
     {"number": 2, "name": "Ben", "student_id": "2022-4567", "service_id": 1, "status": "waiting"},
     {"number": 3, "name": "Ana", "student_id": "2021-8910", "service_id": 3, "status": "waiting"},
 ]
+
+
+@app.context_processor
+def inject_my_ticket():
+    t = next((t for t in TICKETS if t["number"] == session.get("ticket_id")), None)
+    if t and t["status"] in ("waiting", "called"):
+        return {"my_ticket": t}
+    return {"my_ticket": None}
 
 
 @app.route("/")
@@ -46,8 +56,21 @@ def leave(ticket_id):
     if t is None:
         abort(404)
     t["status"] = "no-show"
+    if session.get("ticket_id") == ticket_id:
+        session.pop("ticket_id")
     flash("You left the queue.", "info")
     return redirect(url_for("index"))
+
+
+@app.get("/queue/<int:ticket_id>/status.json")
+def ticket_status(ticket_id):
+    t = next((t for t in TICKETS if t["number"] == ticket_id), None)
+    if t is None:
+        abort(404)
+    ahead = sum(1 for x in TICKETS
+                if x["service_id"] == t["service_id"]
+                and x["status"] == "waiting" and x["number"] < t["number"])
+    return {"status": t["status"], "ahead": ahead, "wait": ahead * MINUTES_PER_STUDENT}
 
 
 @app.get("/join")
@@ -79,8 +102,30 @@ def join():
     number = TICKETS[-1]["number"] + 1 if TICKETS else 1
     TICKETS.append({"number": number, "name": name, "student_id": student_id,
                     "service_id": service_id, "status": "waiting"})
+    session.permanent = True
+    session["ticket_id"] = number
     flash(f"You joined the queue. Your ticket is #{number}.", "success")
     return redirect(url_for("ticket", ticket_id=number))
+
+
+@app.get("/find")
+def find_form():
+    return render_template("find.html", form={})
+
+
+@app.post("/find")
+def find():
+    form = request.form
+    number = form.get("number", type=int)
+    student_id = form.get("student_id", "").strip().lower()
+    t = next((t for t in TICKETS if t["number"] == number
+              and t["student_id"].lower() == student_id), None)
+    if t is None:
+        flash("We couldn't find that ticket. Check the ticket number and student ID.", "danger")
+        return render_template("find.html", form=form), 400
+    session.permanent = True
+    session["ticket_id"] = t["number"]
+    return redirect(url_for("ticket", ticket_id=t["number"]))
 
 
 @app.get("/staff")
