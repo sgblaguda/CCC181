@@ -83,6 +83,7 @@ def join():
     form = request.form
     name = form.get("name", "").strip()
     student_id = form.get("student_id", "").strip()
+    email = form.get("email", "").strip().lower()
     service_id = form.get("service_id", type=int)
 
     errors = {}
@@ -92,6 +93,8 @@ def join():
         errors["name"] = "Name must be 60 characters or fewer."
     if not re.fullmatch(r"[A-Za-z0-9-]{4,20}", student_id):
         errors["student_id"] = "Enter your student ID (letters, numbers and dashes only)."
+    if email and (len(email) > 100 or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email)):
+        errors["email"] = "Enter a valid email address, or leave it blank."
     if service_id not in [s["id"] for s in SERVICES]:
         errors["service_id"] = "Choose the type of concern."
 
@@ -101,7 +104,7 @@ def join():
 
     number = TICKETS[-1]["number"] + 1 if TICKETS else 1
     TICKETS.append({"number": number, "name": name, "student_id": student_id,
-                    "service_id": service_id, "status": "waiting"})
+                    "email": email, "service_id": service_id, "status": "waiting"})
     session.permanent = True
     session["ticket_id"] = number
     flash(f"You joined the queue. Your ticket is #{number}.", "success")
