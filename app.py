@@ -1,11 +1,24 @@
+import os
 import re
 from datetime import timedelta
-
+ 
+from dotenv import load_dotenv
 from flask import Flask, abort, flash, redirect, render_template, request, session, url_for
-
+from flask_migrate import Migrate
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
+ 
+from models import Service, Ticket, User, db
+ 
+load_dotenv()
+ 
 app = Flask(__name__)
 app.secret_key = "dev-only-change-me"
-app.permanent_session_lifetime = timedelta(hours=12)
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ["DATABASE_URL"]
+app.config["SQLALCHEMY_ECHO"] = os.environ.get("SQLALCHEMY_ECHO") == "1"
+ 
+db.init_app(app)
+migrate = Migrate(app, db)
 
 MINUTES_PER_STUDENT = 10
 
