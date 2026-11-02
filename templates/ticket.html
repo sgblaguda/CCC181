@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Ticket #{{ ticket.id }} · Qeazy{% endblock %}
-
+ 
 {% block content %}
 {% set badges = {'waiting': 'warning', 'called': 'success', 'served': 'secondary', 'no-show': 'danger'} %}
 <div class="row justify-content-center">
@@ -9,8 +9,9 @@
       <div class="card-body py-4">
         <h1 class="h5">Your ticket is</h1>
         <p class="display-1 fw-bold mb-1">#{{ ticket.id }}</p>
-        <p class="fs-5 mb-3">{{ service.name }}</p>
-
+        <p class="fs-5 mb-1">{{ service.name }}</p>
+        <p class="text-body-secondary small mb-3">Joined {{ ticket.created_at|local }}</p>
+ 
         <div id="live-status" aria-live="polite">
           <p class="mb-2">
             <span id="status-badge" class="badge fs-6 text-bg-{{ badges[ticket.status] }}">{{ ticket.status|capitalize }}</span>
@@ -27,7 +28,7 @@
             {% if ticket.status == 'waiting' and ahead > 0 %}About {{ wait }} minutes{% endif %}
           </p>
         </div>
-
+ 
         {% if ticket.status in ('waiting', 'called') %}
         <form id="leave-form" method="post" action="{{ url_for('leave', ticket_id=ticket.id) }}"
               onsubmit="return confirm('Leave the queue? You will lose your place.');">
@@ -39,12 +40,12 @@
   </div>
 </div>
 {% endblock %}
-
+ 
 {% block scripts %}
 <script>
   const statusUrl = "{{ url_for('ticket_status', ticket_id=ticket.id) }}";
   const BADGES = {waiting: "warning", called: "success", served: "secondary", "no-show": "danger"};
-
+ 
   function describe(data) {
     if (data.status === "waiting") {
       if (data.ahead === 0) return "You're next!";
@@ -54,7 +55,7 @@
     if (data.status === "served") return "You have been served.";
     return "You are no longer in the queue.";
   }
-
+ 
   function render(data) {
     const badge = document.getElementById("status-badge");
     badge.className = "badge fs-6 text-bg-" + BADGES[data.status];
@@ -66,7 +67,7 @@
     const leaveForm = document.getElementById("leave-form");
     if (leaveForm) leaveForm.classList.toggle("d-none", !(data.status === "waiting" || data.status === "called"));
   }
-
+ 
   async function refreshStatus() {
     try {
       const res = await fetch(statusUrl);
@@ -76,7 +77,8 @@
       console.warn("Could not refresh status", err);
     }
   }
-
+ 
   setInterval(refreshStatus, 10000);
 </script>
 {% endblock %}
+ 

@@ -43,6 +43,7 @@
         <th scope="col">Ticket</th>
         <th scope="col">Name</th>
         <th scope="col">Concern</th>
+        <th scope="col">Joined</th>
         <th scope="col">Status</th>
         <th scope="col">Actions</th>
       </tr>
@@ -50,20 +51,21 @@
     <tbody>
       {% for t in queue %}
       <tr>
-        <th scope="row">#{{ t.number }}</th>
-        <td>{{ t.name }}</td>
-        <td>{{ names[t.service_id] }}</td>
+        <th scope="row">#{{ t.id }}</th>
+        <td>{{ t.user.name if t.user else "(removed)" }}</td>
+        <td>{{ t.service.name }}</td>
+        <td>{{ t.created_at|local }}</td>
         <td><span class="badge text-bg-{{ badges[t.status] }}">{{ t.status|capitalize }}</span></td>
         <td>
           {% if t.status == 'called' %}
           <div class="d-flex gap-2">
-            <form method="post" action="{{ url_for('staff_action', ticket_id=t.number, action='serve') }}">
+            <form method="post" action="{{ url_for('staff_action', ticket_id=t.id, action='serve') }}">
               <input type="hidden" name="service_id" value="{{ selected or '' }}">
-              <button type="submit" class="btn btn-sm btn-primary" aria-label="Mark ticket {{ t.number }} as served">Serve</button>
+              <button type="submit" class="btn btn-sm btn-primary" aria-label="Mark ticket {{ t.id }} as served">Serve</button>
             </form>
-            <form method="post" action="{{ url_for('staff_action', ticket_id=t.number, action='no-show') }}">
+            <form method="post" action="{{ url_for('staff_action', ticket_id=t.id, action='no-show') }}">
               <input type="hidden" name="service_id" value="{{ selected or '' }}">
-              <button type="submit" class="btn btn-sm btn-outline-dark" aria-label="Mark ticket {{ t.number }} as no-show">No-show</button>
+              <button type="submit" class="btn btn-sm btn-outline-dark" aria-label="Mark ticket {{ t.id }} as no-show">No-show</button>
             </form>
           </div>
           {% else %}

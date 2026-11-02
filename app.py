@@ -1,6 +1,6 @@
 import os
 import re
-from datetime import timedelta
+from datetime import timedelta, timezone
  
 from dotenv import load_dotenv
 from flask import Flask, abort, flash, redirect, render_template, request, session, url_for
@@ -22,6 +22,12 @@ migrate = Migrate(app, db)
 
 MINUTES_PER_STUDENT = 10
 
+PH_TIME = timezone(timedelta(hours=8))
+
+@app.template_filter("local")
+def local_time(value):
+    return value.astimezone(PH_TIME).strftime("%b %d, %I:%M %p") if value else ""
+
 @app.cli.command("seed")
 def seed():
     starting = [("Late enrollment", 15), ("Change of subjects", 10),
@@ -41,25 +47,24 @@ def inject_my_ticket():
         return {"my_ticket": t}
     return {"my_ticket": None}
 
-
 @app.route("/")
 def index():
     return render_template("index.html")
 
+def people_ahead(t):
+    stmt = (db.select(func.count())
+            .select_from(Ticket)
+            .where(Ticket.service_id == t.service_id,
+                   Ticket.status == "waiting",
+                   Ticket.id < t.id))
+    return db.session.scalar(stmt)
 
 @app.get("/queue/<int:ticket_id>")
 def ticket(ticket_id):
-    t = next((t for t in TICKETS if t["number"] == ticket_id), None)
-    if t is None:
-        abort(404)
-    ahead = [x for x in TICKETS
-             if x["service_id"] == t["service_id"]
-             and x["status"] == "waiting"
-             and x["number"] < t["number"]]
-    service = next(s for s in SERVICES if s["id"] == t["service_id"])
-    return render_template("ticket.html", ticket=t, service=service, ahead=len(ahead),
-                           wait=len(ahead) * MINUTES_PER_STUDENT)
-
+    t = db.get_or_404(Ticket, ticket_id)
+    ahead = people_ahead(t)
+    return render_template("ticket.html", ticket=t, service=t.service, ahead=ahead,
+                           wait=ahead * t.service.avg_minutes)
 
 @app.post("/queue/<int:ticket_id>/leave")
 def leave(ticket_id):
@@ -75,13 +80,9 @@ def leave(ticket_id):
 
 @app.get("/queue/<int:ticket_id>/status.json")
 def ticket_status(ticket_id):
-    t = next((t for t in TICKETS if t["number"] == ticket_id), None)
-    if t is None:
-        abort(404)
-    ahead = sum(1 for x in TICKETS
-                if x["service_id"] == t["service_id"]
-                and x["status"] == "waiting" and x["number"] < t["number"])
-    return {"status": t["status"], "ahead": ahead, "wait": ahead * MINUTES_PER_STUDENT}
+    t = db.get_or_404(Ticket, ticket_id)
+    ahead = people_ahead(t)
+    return {"status": t.status, "ahead": ahead, "wait": ahead * t.service.avg_minutes}
 
 
 def all_services():
@@ -165,15 +166,19 @@ def find():
 @app.get("/staff")
 def staff_dashboard():
     service_id = request.args.get("service_id", type=int)
-    queue = [t for t in TICKETS if t["status"] in ("waiting", "called")]
+    stmt = (db.select(Ticket)
+            .where(Ticket.status.in_(["waiting", "called"]))
+            .order_by(Ticket.status != "called", Ticket.id))
     if service_id:
-        queue = [t for t in queue if t["service_id"] == service_id]
-    queue.sort(key=lambda t: (t["status"] != "called", t["number"]))
-    names = {s["id"]: s["name"] for s in SERVICES}
-    counts = {s["id"]: sum(1 for t in TICKETS
-                           if t["service_id"] == s["id"] and t["status"] == "waiting")
-              for s in SERVICES}
-    return render_template("staff.html", queue=queue, services=SERVICES, names=names,
+        stmt = stmt.where(Ticket.service_id == service_id)
+    queue = db.session.scalars(stmt).all()
+    rows = db.session.execute(
+        db.select(Ticket.service_id, func.count())
+        .where(Ticket.status == "waiting").group_by(Ticket.service_id)).all()
+    waiting = dict(rows)
+    services = all_services()
+    counts = {s.id: waiting.get(s.id, 0) for s in services}
+    return render_template("staff.html", queue=queue, services=services,
                            counts=counts, selected=service_id)
 
 
