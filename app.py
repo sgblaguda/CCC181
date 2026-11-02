@@ -22,20 +22,6 @@ migrate = Migrate(app, db)
 
 MINUTES_PER_STUDENT = 10
 
-SERVICES = [
-    {"id": 1, "name": "Late enrollment"},
-    {"id": 2, "name": "Change of subjects"},
-    {"id": 3, "name": "Crediting"},
-    {"id": 4, "name": "Record correction"},
-]
-
-TICKETS = [
-    {"number": 1, "name": "Loi", "student_id": "2023-0123", "service_id": 2, "status": "called"},
-    {"number": 2, "name": "Ben", "student_id": "2022-4567", "service_id": 1, "status": "waiting"},
-    {"number": 3, "name": "Ana", "student_id": "2021-8910", "service_id": 3, "status": "waiting"},
-]
-
-
 @app.cli.command("seed")
 def seed():
     starting = [("Late enrollment", 15), ("Change of subjects", 10),
@@ -49,8 +35,9 @@ def seed():
 
 @app.context_processor
 def inject_my_ticket():
-    t = next((t for t in TICKETS if t["number"] == session.get("ticket_id")), None)
-    if t and t["status"] in ("waiting", "called"):
+    ticket_id = session.get("ticket_id")
+    t = db.session.get(Ticket, ticket_id) if ticket_id else None
+    if t and t.status in ("waiting", "called"):
         return {"my_ticket": t}
     return {"my_ticket": None}
 
@@ -97,42 +84,62 @@ def ticket_status(ticket_id):
     return {"status": t["status"], "ahead": ahead, "wait": ahead * MINUTES_PER_STUDENT}
 
 
+def all_services():
+    return db.session.scalars(db.select(Service).order_by(Service.name)).all()
+
+
 @app.get("/join")
 def join_form():
-    return render_template("join.html", services=SERVICES, form={}, errors={})
+    return render_template("join.html", services=all_services(), form={}, errors={})
 
 
 @app.post("/join")
 def join():
     form = request.form
     name = form.get("name", "").strip()
-    student_id = form.get("student_id", "").strip()
+    student_id = form.get("student_id", "").strip().upper()
     email = form.get("email", "").strip().lower()
     service_id = form.get("service_id", type=int)
+    service = db.session.get(Service, service_id) if service_id else None
 
     errors = {}
     if not name:
         errors["name"] = "Enter your name."
-    elif len(name) > 60:
-        errors["name"] = "Name must be 60 characters or fewer."
-    if not re.fullmatch(r"[A-Za-z0-9-]{4,20}", student_id):
+    elif len(name) > 80:
+        errors["name"] = "Name must be 80 characters or fewer."
+    if not re.fullmatch(r"[0-9-]{4,20}", student_id):
         errors["student_id"] = "Enter your student ID (letters, numbers and dashes only)."
-    if email and (len(email) > 100 or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email)):
+    if email and (len(email) > 120 or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email)):
         errors["email"] = "Enter a valid email address, or leave it blank."
-    if service_id not in [s["id"] for s in SERVICES]:
+    if service is None:
         errors["service_id"] = "Choose the type of concern."
 
     if errors:
         flash("Please fix the highlighted fields.", "danger")
-        return render_template("join.html", services=SERVICES, form=form, errors=errors), 400
+        return render_template("join.html", services=all_services(),
+                               form=form, errors=errors), 400
 
-    number = TICKETS[-1]["number"] + 1 if TICKETS else 1
-    TICKETS.append({"number": number, "name": name, "student_id": student_id,
-                    "email": email, "service_id": service_id, "status": "waiting"})
+    user = db.session.scalar(db.select(User).filter_by(student_id=student_id))
+    if user is None:
+        user = User(name=name, student_id=student_id, email=email or None)
+    else:
+        user.name = name
+        if email:
+            user.email = email
+    ticket = Ticket(user=user, service=service)
+    db.session.add(ticket)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash("Something went wrong saving your ticket. Please try again.", "danger")
+        return render_template("join.html", services=all_services(),
+                               form=form, errors={}), 409
+
     session.permanent = True
-    session["ticket_id"] = number
-    flash(f"You joined the queue. Your ticket is #{number}.", "success")
-    return redirect(url_for("ticket", ticket_id=number))
+    session["ticket_id"] = ticket.id
+    flash(f"You joined the queue. Your ticket is #{ticket.id}.", "success")
+    return redirect(url_for("ticket", ticket_id=ticket.id))
 
 
 @app.get("/find")
