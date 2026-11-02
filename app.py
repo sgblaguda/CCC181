@@ -36,6 +36,17 @@ TICKETS = [
 ]
 
 
+@app.cli.command("seed")
+def seed():
+    starting = [("Late enrollment", 15), ("Change of subjects", 10),
+                ("Crediting", 15), ("Record correction", 10)]
+    for name, minutes in starting:
+        exists = db.session.scalar(db.select(Service).filter_by(name=name))
+        if exists is None:
+            db.session.add(Service(name=name, avg_minutes=minutes))
+    db.session.commit()
+    print("Services are ready.")
+
 @app.context_processor
 def inject_my_ticket():
     t = next((t for t in TICKETS if t["number"] == session.get("ticket_id")), None)
