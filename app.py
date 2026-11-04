@@ -68,10 +68,10 @@ def ticket(ticket_id):
 
 @app.post("/queue/<int:ticket_id>/leave")
 def leave(ticket_id):
-    t = next((t for t in TICKETS if t["number"] == ticket_id), None)
-    if t is None:
-        abort(404)
-    t["status"] = "no-show"
+    t = db.get_or_404(Ticket, ticket_id)
+    if t.status in ("waiting", "called"):
+        t.status = "left"
+        db.session.commit()
     if session.get("ticket_id") == ticket_id:
         session.pop("ticket_id")
     flash("You left the queue.", "info")
@@ -185,27 +185,42 @@ def staff_dashboard():
 @app.post("/staff/call-next")
 def call_next():
     service_id = request.form.get("service_id", type=int)
-    nxt = next((t for t in TICKETS if t["status"] == "waiting"
-                and (not service_id or t["service_id"] == service_id)), None)
+    stmt = db.select(Ticket).where(Ticket.status == "waiting").order_by(Ticket.id).limit(1)
+    if service_id:
+        stmt = stmt.where(Ticket.service_id == service_id)
+    nxt = db.session.scalar(stmt)
     if nxt is None:
         flash("No one is waiting.", "warning")
     else:
-        nxt["status"] = "called"
-        flash(f"Called ticket #{nxt['number']} ({nxt['name']}).", "info")
+        nxt.status = "called"
+        nxt.called_at = func.now()
+        db.session.commit()
+        who = nxt.user.name if nxt.user else "a student"
+        flash(f"Called ticket #{nxt.id} ({who}).", "info")
     return redirect(url_for("staff_dashboard", service_id=service_id))
 
+@app.post("/staff/tickets/<int:ticket_id>/delete")
+def delete_ticket(ticket_id):
+    t = db.get_or_404(Ticket, ticket_id)
+    db.session.delete(t)
+    db.session.commit()
+    flash(f"Ticket #{ticket_id} was deleted.", "warning")
+    return redirect(url_for("staff_dashboard", service_id=request.form.get("service_id", type=int)))
 
 @app.post("/staff/tickets/<int:ticket_id>/<action>")
 def staff_action(ticket_id, action):
     new_status = {"call": "called", "serve": "served", "no-show": "no-show"}.get(action)
-    t = next((t for t in TICKETS if t["number"] == ticket_id), None)
-    if t is None or new_status is None:
+    if new_status is None:
         abort(404)
+    t = db.get_or_404(Ticket, ticket_id)
     required = "waiting" if action == "call" else "called"
-    if t["status"] != required:
-        flash(f"Ticket #{ticket_id} is {t['status']}, so it can't be marked {new_status}.", "warning")
+    if t.status != required:
+        flash(f"Ticket #{ticket_id} is {t.status}, so it can't be marked {new_status}.", "warning")
     else:
-        t["status"] = new_status
+        t.status = new_status
+        if new_status == "called":
+            t.called_at = func.now()
+        db.session.commit()
         flash(f"Ticket #{ticket_id} marked {new_status}.", "info")
     return redirect(url_for("staff_dashboard", service_id=request.form.get("service_id", type=int)))
 
