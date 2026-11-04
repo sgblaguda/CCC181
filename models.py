@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, func, true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 db = SQLAlchemy()
@@ -31,6 +31,8 @@ class Service(db.Model):
     __table_args__ = (
         CheckConstraint("avg_minutes > 0", name="ck_services_avg_minutes"),
     )
+
+    active: Mapped[bool] = mapped_column(default=True, server_default=true())
 
 
 class Ticket(db.Model):

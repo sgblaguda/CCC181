@@ -88,10 +88,13 @@ def ticket_status(ticket_id):
 def all_services():
     return db.session.scalars(db.select(Service).order_by(Service.name)).all()
 
+def active_services():
+    stmt = db.select(Service).filter_by(active=True).order_by(Service.name)
+    return db.session.scalars(stmt).all()
 
 @app.get("/join")
 def join_form():
-    return render_template("join.html", services=all_services(), form={}, errors={})
+    return render_template("join.html", services=active_services(), form={}, errors={})
 
 
 @app.post("/join")
@@ -112,12 +115,12 @@ def join():
         errors["student_id"] = "Enter your student ID (letters, numbers and dashes only)."
     if email and (len(email) > 120 or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email)):
         errors["email"] = "Enter a valid email address, or leave it blank."
-    if service is None:
+    if service is None or not service.active:
         errors["service_id"] = "Choose the type of concern."
 
     if errors:
         flash("Please fix the highlighted fields.", "danger")
-        return render_template("join.html", services=all_services(),
+        return render_template("join.html", services=active_services(),
                                form=form, errors=errors), 400
 
     user = db.session.scalar(db.select(User).filter_by(student_id=student_id))
@@ -134,7 +137,7 @@ def join():
     except IntegrityError:
         db.session.rollback()
         flash("Something went wrong saving your ticket. Please try again.", "danger")
-        return render_template("join.html", services=all_services(),
+        return render_template("join.html", services=active_services(),
                                form=form, errors={}), 409
 
     session.permanent = True
@@ -153,10 +156,13 @@ def find():
     form = request.form
     number = form.get("number", type=int)
     student_id = form.get("student_id", "").strip().lower()
-    t = next((t for t in TICKETS if t["number"] == number
-              and t["student_id"].lower() == student_id), None)
+    t = None
+    if number:
+        stmt = (db.select(Ticket).join(User, Ticket.user_id == User.id)
+                .where(Ticket.id == number, User.student_id == student_id))
+        t = db.session.scalar(stmt)
     if t is None:
-        flash("We couldn't find that ticket. Check the ticket number and student ID.", "danger")
+        flash("We couldn't find that ticket. Check the ticket number and student ID", "danger")
         return render_template("find.html", form=form), 400
     session.permanent = True
     session["ticket_id"] = t["number"]
@@ -224,6 +230,55 @@ def staff_action(ticket_id, action):
         flash(f"Ticket #{ticket_id} marked {new_status}.", "info")
     return redirect(url_for("staff_dashboard", service_id=request.form.get("service_id", type=int)))
 
+@app.get("/staff/services")
+def services_list():
+    return render_template("services.html", services=all_services())
+
+@app.post("/staff/services")
+def service_create():
+    name = request.form.get("name", "").strip()
+    minutes = request.form.get("avg_minutes", type=int)
+    if not name or len(name) > 60 or not minutes or minutes <= 0:
+        flash("Enter a name (up to 60 characters) and minutes greater than 0.", "danger")
+        return redirect(url_for("services_list"))
+    db.session.add(Service(name=name, avg_minutes=minutes))
+    try:
+        db.session.commit()
+        flash(f"Concern “{name}” added.", "success")
+    except IntegrityError:
+        db.session.rollback()
+        flash(f"A concern named “{name}” already exists.", "danger")
+    return redirect(url_for("services_list"))
+
+@app.post("/staff/services/<int:service_id>")
+def service_edit(service_id):
+    s = db.get_or_404(Service, service_id)
+    name = request.form.get("name", "").strip()
+    minutes = request.form.get("avg_minutes", type=int)
+    if not name or len(name) > 60 or not minutes or minutes <= 0:
+        flash("Enter a name (up to 60 characters) and minutes greater than 0.", "danger")
+        return redirect(url_for("services_list"))
+    s.name = name
+    s.avg_minutes = minutes
+    s.active = request.form.get("active") == "on"
+    try:
+        db.session.commit()
+        flash(f"Concern “{name}” updated.", "success")
+    except IntegrityError:
+        db.session.rollback()
+        flash(f"A concern named “{name}” already exists.", "danger")
+    return redirect(url_for("services_list"))
+
+@app.post("/staff/services/<int:service_id>/delete")
+def service_delete(service_id):
+    s = db.get_or_404(Service, service_id)
+    if s.tickets:
+        flash(f"“{s.name}” has tickets, so it cannot be deleted. Turn it off instead.", "danger")
+        return redirect(url_for("services_list"))
+    db.session.delete(s)
+    db.session.commit()
+    flash(f"Concern “{s.name}” deleted.", "warning")
+    return redirect(url_for("services_list"))
 
 if __name__ == "__main__":
     app.run(debug=True)

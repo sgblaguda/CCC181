@@ -9,7 +9,7 @@
   {% for s in services %}
     <div class="qz-count">
       <span class="qz-count-num">{{ counts[s.id] }}</span>
-      <span class="qz-count-label">{{ s.name }}</span>
+      <span class="qz-count-label">{{ s.name }}{% if not s.active %} (off){% endif %}</span>
     </div>
   {% endfor %}
 </div>
@@ -32,6 +32,11 @@
     </div>
     <button type="submit" class="btn btn-outline-dark">Filter</button>
   </form>
+</div>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <h1 class="h3 mb-0">Staff Dashboard</h1>
+  <a class="btn btn-outline-dark" href="{{ url_for('services_list') }}">Manage concerns</a>
 </div>
 
 {% if queue %}
