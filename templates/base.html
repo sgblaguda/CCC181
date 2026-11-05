@@ -26,7 +26,7 @@
           <li class="nav-item">
             <a class="nav-link {% if request.endpoint == 'ticket' %}active{% endif %}"
                {% if request.endpoint == 'ticket' %}aria-current="page"{% endif %}
-               href="{{ url_for('ticket', ticket_id=my_ticket.number) }}">My place (#{{ my_ticket.number }})</a>
+               href="{{ url_for('ticket', ticket_id=my_ticket.id) }}">My place (#{{ my_ticket.id }})</a>
           </li>
           {% endif %}
           <li class="nav-item">

@@ -9,7 +9,7 @@
   {% for s in services %}
     <div class="qz-count">
       <span class="qz-count-num">{{ counts[s.id] }}</span>
-      <span class="qz-count-label">{{ s.name }}</span>
+      <span class="qz-count-label">{{ s.name }}{% if not s.active %} (off){% endif %}</span>
     </div>
   {% endfor %}
 </div>
@@ -34,6 +34,11 @@
   </form>
 </div>
 
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <h1 class="h3 mb-0">Staff Dashboard</h1>
+  <a class="btn btn-outline-dark" href="{{ url_for('services_list') }}">Manage concerns</a>
+</div>
+
 {% if queue %}
 <div class="table-responsive">
   <table class="table align-middle">
@@ -43,6 +48,7 @@
         <th scope="col">Ticket</th>
         <th scope="col">Name</th>
         <th scope="col">Concern</th>
+        <th scope="col">Joined</th>
         <th scope="col">Status</th>
         <th scope="col">Actions</th>
       </tr>
@@ -50,26 +56,32 @@
     <tbody>
       {% for t in queue %}
       <tr>
-        <th scope="row">#{{ t.number }}</th>
-        <td>{{ t.name }}</td>
-        <td>{{ names[t.service_id] }}</td>
+        <th scope="row">#{{ t.id }}</th>
+        <td>{{ t.user.name if t.user else "(removed)" }}</td>
+        <td>{{ t.service.name }}</td>
+        <td>{{ t.created_at|local }}</td>
         <td><span class="badge text-bg-{{ badges[t.status] }}">{{ t.status|capitalize }}</span></td>
         <td>
+        <div class="d-flex flex-wrap gap-2">
           {% if t.status == 'called' %}
-          <div class="d-flex gap-2">
-            <form method="post" action="{{ url_for('staff_action', ticket_id=t.number, action='serve') }}">
-              <input type="hidden" name="service_id" value="{{ selected or '' }}">
-              <button type="submit" class="btn btn-sm btn-primary" aria-label="Mark ticket {{ t.number }} as served">Serve</button>
-            </form>
-            <form method="post" action="{{ url_for('staff_action', ticket_id=t.number, action='no-show') }}">
-              <input type="hidden" name="service_id" value="{{ selected or '' }}">
-              <button type="submit" class="btn btn-sm btn-outline-dark" aria-label="Mark ticket {{ t.number }} as no-show">No-show</button>
-            </form>
-          </div>
+          <form method="post" action="{{ url_for('staff_action', ticket_id=t.id, action='serve') }}">
+            <input type="hidden" name="service_id" value="{{ selected or '' }}">
+            <button type="submit" class="btn btn-sm btn-primary" aria-label="Mark ticket {{ t.id }} as served">Serve</button>
+          </form>
+          <form method="post" action="{{ url_for('staff_action', ticket_id=t.id, action='no-show') }}">
+            <input type="hidden" name="service_id" value="{{ selected or '' }}">
+            <button type="submit" class="btn btn-sm btn-outline-dark" aria-label="Mark ticket {{ t.id }} as no-show">No-show</button>
+          </form>
           {% else %}
-          <span class="text-body-secondary">Waiting to be called</span>
+          <span class="text-body-secondary align-self-center">Waiting to be called</span>
           {% endif %}
-        </td>
+          <form method="post" action="{{ url_for('delete_ticket', ticket_id=t.id) }}"
+                data-confirm="Delete ticket {{ t.id }}? This cannot be undone.">
+            <input type="hidden" name="service_id" value="{{ selected or '' }}">
+            <button type="submit" class="btn btn-sm btn-outline-danger" aria-label="Delete ticket {{ t.id }}">Delete</button>
+          </form>
+        </div>
+      </td>
       </tr>
       {% endfor %}
     </tbody>
