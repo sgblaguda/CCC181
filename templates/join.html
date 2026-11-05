@@ -10,7 +10,7 @@
       <div class="qz-card mb-4">
         <div class="mb-3">
           <label for="name" class="form-label fw-semibold">Your name</label>
-          <input id="name" name="name" type="text" autocomplete="name" required
+          <input id="name" name="name" type="text" maxlength="80" autocomplete="name" required
                  class="form-control {% if errors.name %}is-invalid{% endif %}"
                  value="{{ form.get('name', '') }}"
                  {% if errors.name %}aria-describedby="name-error"{% endif %}>
@@ -21,7 +21,7 @@
 
         <div class="mb-3">
           <label for="student_id" class="form-label fw-semibold">Student ID</label>
-          <input id="student_id" name="student_id" type="text" autocomplete="off" required
+          <input id="student_id" name="student_id" type="text" maxlength="20" autocomplete="off" required
                  class="form-control {% if errors.student_id %}is-invalid{% endif %}"
                  value="{{ form.get('student_id', '') }}"
                  {% if errors.student_id %}aria-describedby="student_id-error"{% endif %}>
@@ -32,7 +32,7 @@
 
         <div class="mb-3">
           <label for="email" class="form-label fw-semibold">Email <span class="fw-normal">(optional)</span></label>
-          <input id="email" name="email" type="email" autocomplete="email"
+          <input id="email" name="email" type="email" maxlength="120" autocomplete="email"
                  class="form-control {% if errors.email %}is-invalid{% endif %}"
                  value="{{ form.get('email', '') }}"
                  aria-describedby="email-help{% if errors.email %} email-error{% endif %}">
