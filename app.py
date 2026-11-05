@@ -1,61 +1,77 @@
+import os
 import re
-from datetime import timedelta
-
+from datetime import timedelta, timezone
+ 
+from dotenv import load_dotenv
 from flask import Flask, abort, flash, redirect, render_template, request, session, url_for
-
+from flask_migrate import Migrate
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
+ 
+from models import Service, Ticket, User, db
+ 
+load_dotenv()
+ 
 app = Flask(__name__)
 app.secret_key = "dev-only-change-me"
-app.permanent_session_lifetime = timedelta(hours=12)
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ["DATABASE_URL"]
+app.config["SQLALCHEMY_ECHO"] = os.environ.get("SQLALCHEMY_ECHO") == "1"
+ 
+db.init_app(app)
+migrate = Migrate(app, db)
 
 MINUTES_PER_STUDENT = 10
 
-SERVICES = [
-    {"id": 1, "name": "Late enrollment"},
-    {"id": 2, "name": "Change of subjects"},
-    {"id": 3, "name": "Crediting"},
-    {"id": 4, "name": "Record correction"},
-]
+PH_TIME = timezone(timedelta(hours=8))
 
-TICKETS = [
-    {"number": 1, "name": "Loi", "student_id": "2023-0123", "service_id": 2, "status": "called"},
-    {"number": 2, "name": "Ben", "student_id": "2022-4567", "service_id": 1, "status": "waiting"},
-    {"number": 3, "name": "Ana", "student_id": "2021-8910", "service_id": 3, "status": "waiting"},
-]
+@app.template_filter("local")
+def local_time(value):
+    return value.astimezone(PH_TIME).strftime("%b %d, %I:%M %p") if value else ""
 
+@app.cli.command("seed")
+def seed():
+    starting = [("Late enrollment", 15), ("Change of subjects", 10),
+                ("Crediting", 15), ("Record correction", 10)]
+    for name, minutes in starting:
+        exists = db.session.scalar(db.select(Service).filter_by(name=name))
+        if exists is None:
+            db.session.add(Service(name=name, avg_minutes=minutes))
+    db.session.commit()
+    print("Services are ready.")
 
 @app.context_processor
 def inject_my_ticket():
-    t = next((t for t in TICKETS if t["number"] == session.get("ticket_id")), None)
-    if t and t["status"] in ("waiting", "called"):
+    ticket_id = session.get("ticket_id")
+    t = db.session.get(Ticket, ticket_id) if ticket_id else None
+    if t and t.status in ("waiting", "called"):
         return {"my_ticket": t}
     return {"my_ticket": None}
-
 
 @app.route("/")
 def index():
     return render_template("index.html")
 
+def people_ahead(t):
+    stmt = (db.select(func.count())
+            .select_from(Ticket)
+            .where(Ticket.service_id == t.service_id,
+                   Ticket.status == "waiting",
+                   Ticket.id < t.id))
+    return db.session.scalar(stmt)
 
 @app.get("/queue/<int:ticket_id>")
 def ticket(ticket_id):
-    t = next((t for t in TICKETS if t["number"] == ticket_id), None)
-    if t is None:
-        abort(404)
-    ahead = [x for x in TICKETS
-             if x["service_id"] == t["service_id"]
-             and x["status"] == "waiting"
-             and x["number"] < t["number"]]
-    service = next(s for s in SERVICES if s["id"] == t["service_id"])
-    return render_template("ticket.html", ticket=t, service=service, ahead=len(ahead),
-                           wait=len(ahead) * MINUTES_PER_STUDENT)
-
+    t = db.get_or_404(Ticket, ticket_id)
+    ahead = people_ahead(t)
+    return render_template("ticket.html", ticket=t, service=t.service, ahead=ahead,
+                           wait=ahead * t.service.avg_minutes)
 
 @app.post("/queue/<int:ticket_id>/leave")
 def leave(ticket_id):
-    t = next((t for t in TICKETS if t["number"] == ticket_id), None)
-    if t is None:
-        abort(404)
-    t["status"] = "no-show"
+    t = db.get_or_404(Ticket, ticket_id)
+    if t.status in ("waiting", "called"):
+        t.status = "left"
+        db.session.commit()
     if session.get("ticket_id") == ticket_id:
         session.pop("ticket_id")
     flash("You left the queue.", "info")
@@ -64,48 +80,70 @@ def leave(ticket_id):
 
 @app.get("/queue/<int:ticket_id>/status.json")
 def ticket_status(ticket_id):
-    t = next((t for t in TICKETS if t["number"] == ticket_id), None)
-    if t is None:
-        abort(404)
-    ahead = sum(1 for x in TICKETS
-                if x["service_id"] == t["service_id"]
-                and x["status"] == "waiting" and x["number"] < t["number"])
-    return {"status": t["status"], "ahead": ahead, "wait": ahead * MINUTES_PER_STUDENT}
+    t = db.get_or_404(Ticket, ticket_id)
+    ahead = people_ahead(t)
+    return {"status": t.status, "ahead": ahead, "wait": ahead * t.service.avg_minutes}
 
+
+def all_services():
+    return db.session.scalars(db.select(Service).order_by(Service.name)).all()
+
+def active_services():
+    stmt = db.select(Service).filter_by(active=True).order_by(Service.name)
+    return db.session.scalars(stmt).all()
 
 @app.get("/join")
 def join_form():
-    return render_template("join.html", services=SERVICES, form={}, errors={})
+    return render_template("join.html", services=active_services(), form={}, errors={})
 
 
 @app.post("/join")
 def join():
     form = request.form
     name = form.get("name", "").strip()
-    student_id = form.get("student_id", "").strip()
+    student_id = form.get("student_id", "").strip().upper()
+    email = form.get("email", "").strip().lower()
     service_id = form.get("service_id", type=int)
+    service = db.session.get(Service, service_id) if service_id else None
 
     errors = {}
     if not name:
         errors["name"] = "Enter your name."
-    elif len(name) > 60:
-        errors["name"] = "Name must be 60 characters or fewer."
-    if not re.fullmatch(r"[A-Za-z0-9-]{4,20}", student_id):
+    elif len(name) > 80:
+        errors["name"] = "Name must be 80 characters or fewer."
+    if not re.fullmatch(r"[0-9-]{4,20}", student_id):
         errors["student_id"] = "Enter your student ID (letters, numbers and dashes only)."
-    if service_id not in [s["id"] for s in SERVICES]:
+    if email and (len(email) > 120 or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email)):
+        errors["email"] = "Enter a valid email address, or leave it blank."
+    if service is None or not service.active:
         errors["service_id"] = "Choose the type of concern."
 
     if errors:
         flash("Please fix the highlighted fields.", "danger")
-        return render_template("join.html", services=SERVICES, form=form, errors=errors), 400
+        return render_template("join.html", services=active_services(),
+                               form=form, errors=errors), 400
 
-    number = TICKETS[-1]["number"] + 1 if TICKETS else 1
-    TICKETS.append({"number": number, "name": name, "student_id": student_id,
-                    "service_id": service_id, "status": "waiting"})
+    user = db.session.scalar(db.select(User).filter_by(student_id=student_id))
+    if user is None:
+        user = User(name=name, student_id=student_id, email=email or None)
+    else:
+        user.name = name
+        if email:
+            user.email = email
+    ticket = Ticket(user=user, service=service)
+    db.session.add(ticket)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash("Something went wrong saving your ticket. Please try again.", "danger")
+        return render_template("join.html", services=active_services(),
+                               form=form, errors={}), 409
+
     session.permanent = True
-    session["ticket_id"] = number
-    flash(f"You joined the queue. Your ticket is #{number}.", "success")
-    return redirect(url_for("ticket", ticket_id=number))
+    session["ticket_id"] = ticket.id
+    flash(f"You joined the queue. Your ticket is #{ticket.id}.", "success")
+    return redirect(url_for("ticket", ticket_id=ticket.id))
 
 
 @app.get("/find")
@@ -118,10 +156,13 @@ def find():
     form = request.form
     number = form.get("number", type=int)
     student_id = form.get("student_id", "").strip().lower()
-    t = next((t for t in TICKETS if t["number"] == number
-              and t["student_id"].lower() == student_id), None)
+    t = None
+    if number:
+        stmt = (db.select(Ticket).join(User, Ticket.user_id == User.id)
+                .where(Ticket.id == number, User.student_id == student_id))
+        t = db.session.scalar(stmt)
     if t is None:
-        flash("We couldn't find that ticket. Check the ticket number and student ID.", "danger")
+        flash("We couldn't find that ticket. Check the ticket number and student ID", "danger")
         return render_template("find.html", form=form), 400
     session.permanent = True
     session["ticket_id"] = t["number"]
@@ -131,45 +172,113 @@ def find():
 @app.get("/staff")
 def staff_dashboard():
     service_id = request.args.get("service_id", type=int)
-    queue = [t for t in TICKETS if t["status"] in ("waiting", "called")]
+    stmt = (db.select(Ticket)
+            .where(Ticket.status.in_(["waiting", "called"]))
+            .order_by(Ticket.status != "called", Ticket.id))
     if service_id:
-        queue = [t for t in queue if t["service_id"] == service_id]
-    queue.sort(key=lambda t: (t["status"] != "called", t["number"]))
-    names = {s["id"]: s["name"] for s in SERVICES}
-    counts = {s["id"]: sum(1 for t in TICKETS
-                           if t["service_id"] == s["id"] and t["status"] == "waiting")
-              for s in SERVICES}
-    return render_template("staff.html", queue=queue, services=SERVICES, names=names,
+        stmt = stmt.where(Ticket.service_id == service_id)
+    queue = db.session.scalars(stmt).all()
+    rows = db.session.execute(
+        db.select(Ticket.service_id, func.count())
+        .where(Ticket.status == "waiting").group_by(Ticket.service_id)).all()
+    waiting = dict(rows)
+    services = all_services()
+    counts = {s.id: waiting.get(s.id, 0) for s in services}
+    return render_template("staff.html", queue=queue, services=services,
                            counts=counts, selected=service_id)
 
 
 @app.post("/staff/call-next")
 def call_next():
     service_id = request.form.get("service_id", type=int)
-    nxt = next((t for t in TICKETS if t["status"] == "waiting"
-                and (not service_id or t["service_id"] == service_id)), None)
+    stmt = db.select(Ticket).where(Ticket.status == "waiting").order_by(Ticket.id).limit(1)
+    if service_id:
+        stmt = stmt.where(Ticket.service_id == service_id)
+    nxt = db.session.scalar(stmt)
     if nxt is None:
         flash("No one is waiting.", "warning")
     else:
-        nxt["status"] = "called"
-        flash(f"Called ticket #{nxt['number']} ({nxt['name']}).", "info")
+        nxt.status = "called"
+        nxt.called_at = func.now()
+        db.session.commit()
+        who = nxt.user.name if nxt.user else "a student"
+        flash(f"Called ticket #{nxt.id} ({who}).", "info")
     return redirect(url_for("staff_dashboard", service_id=service_id))
 
+@app.post("/staff/tickets/<int:ticket_id>/delete")
+def delete_ticket(ticket_id):
+    t = db.get_or_404(Ticket, ticket_id)
+    db.session.delete(t)
+    db.session.commit()
+    flash(f"Ticket #{ticket_id} was deleted.", "warning")
+    return redirect(url_for("staff_dashboard", service_id=request.form.get("service_id", type=int)))
 
 @app.post("/staff/tickets/<int:ticket_id>/<action>")
 def staff_action(ticket_id, action):
     new_status = {"call": "called", "serve": "served", "no-show": "no-show"}.get(action)
-    t = next((t for t in TICKETS if t["number"] == ticket_id), None)
-    if t is None or new_status is None:
+    if new_status is None:
         abort(404)
+    t = db.get_or_404(Ticket, ticket_id)
     required = "waiting" if action == "call" else "called"
-    if t["status"] != required:
-        flash(f"Ticket #{ticket_id} is {t['status']}, so it can't be marked {new_status}.", "warning")
+    if t.status != required:
+        flash(f"Ticket #{ticket_id} is {t.status}, so it can't be marked {new_status}.", "warning")
     else:
-        t["status"] = new_status
+        t.status = new_status
+        if new_status == "called":
+            t.called_at = func.now()
+        db.session.commit()
         flash(f"Ticket #{ticket_id} marked {new_status}.", "info")
     return redirect(url_for("staff_dashboard", service_id=request.form.get("service_id", type=int)))
 
+@app.get("/staff/services")
+def services_list():
+    return render_template("services.html", services=all_services())
+
+@app.post("/staff/services")
+def service_create():
+    name = request.form.get("name", "").strip()
+    minutes = request.form.get("avg_minutes", type=int)
+    if not name or len(name) > 60 or not minutes or minutes <= 0:
+        flash("Enter a name (up to 60 characters) and minutes greater than 0.", "danger")
+        return redirect(url_for("services_list"))
+    db.session.add(Service(name=name, avg_minutes=minutes))
+    try:
+        db.session.commit()
+        flash(f"Concern “{name}” added.", "success")
+    except IntegrityError:
+        db.session.rollback()
+        flash(f"A concern named “{name}” already exists.", "danger")
+    return redirect(url_for("services_list"))
+
+@app.post("/staff/services/<int:service_id>")
+def service_edit(service_id):
+    s = db.get_or_404(Service, service_id)
+    name = request.form.get("name", "").strip()
+    minutes = request.form.get("avg_minutes", type=int)
+    if not name or len(name) > 60 or not minutes or minutes <= 0:
+        flash("Enter a name (up to 60 characters) and minutes greater than 0.", "danger")
+        return redirect(url_for("services_list"))
+    s.name = name
+    s.avg_minutes = minutes
+    s.active = request.form.get("active") == "on"
+    try:
+        db.session.commit()
+        flash(f"Concern “{name}” updated.", "success")
+    except IntegrityError:
+        db.session.rollback()
+        flash(f"A concern named “{name}” already exists.", "danger")
+    return redirect(url_for("services_list"))
+
+@app.post("/staff/services/<int:service_id>/delete")
+def service_delete(service_id):
+    s = db.get_or_404(Service, service_id)
+    if s.tickets:
+        flash(f"“{s.name}” has tickets, so it cannot be deleted. Turn it off instead.", "danger")
+        return redirect(url_for("services_list"))
+    db.session.delete(s)
+    db.session.commit()
+    flash(f"Concern “{s.name}” deleted.", "warning")
+    return redirect(url_for("services_list"))
 
 if __name__ == "__main__":
     app.run(debug=True)
